@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroDetect — Final Project Report</title>
+  <style>
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 16px;
+      line-height: 1.8;
+      color: #1a1a1a;
+      max-width: 860px;
+      margin: 60px auto;
+      padding: 0 30px 80px;
+      background: #fafafa;
+    }
+    h1 {
+      font-size: 2em;
+      border-bottom: 2px solid #1a1a1a;
+      padding-bottom: 10px;
+      margin-bottom: 6px;
+    }
+    h2 {
+      font-size: 1.4em;
+      margin-top: 48px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 4px;
+    }
+    h3 {
+      font-size: 1.1em;
+      margin-top: 32px;
+      color: #333;
+    }
+    .meta {
+      color: #555;
+      font-size: 0.93em;
+      margin-bottom: 40px;
+    }
+    p { margin: 14px 0; }
+    figure {
+      margin: 32px 0;
+      text-align: center;
+    }
+    figure img {
+      max-width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    figcaption {
+      font-size: 0.88em;
+      color: #555;
+      margin-top: 8px;
+      font-style: italic;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 20px 0;
+      font-size: 0.95em;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px 14px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; font-weight: bold; }
+    tr:nth-child(even) { background: #f7f7f7; }
+    code {
+      font-family: 'Courier New', monospace;
+      background: #f0f0f0;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+    blockquote {
+      border-left: 4px solid #aaa;
+      margin: 20px 0;
+      padding: 6px 18px;
+      color: #444;
+      background: #f5f5f5;
+      border-radius: 0 4px 4px 0;
+    }
+    hr { border: none; border-top: 1px solid #ddd; margin: 40px 0; }
+    .ref-list { font-size: 0.92em; }
+    .ref-list li { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>NeuroDetect &mdash; Final Project Report</h1>
+<div class="meta">
+  <strong>Course:</strong> Computer Vision &nbsp;|&nbsp; Christian Mata, PhD<br>
+  <strong>Group members:</strong> Martin &Ccedil;aro, Edison Zyberaj<br>
+  <strong>Dataset:</strong> LGG Brain MRI Segmentation (Kaggle &mdash; mateuszbuda)
+</div>
+
+<hr>
+
+<h2>1. Introduction</h2>
+
+<p>Brain tumor detection in MRI scans is a high-stakes medical imaging problem. Manual diagnosis is time-consuming and subject to inter-observer variability, making it a strong candidate for deep learning automation. This project implements an end-to-end pipeline addressing the problem from three angles: detecting whether a tumor is present in a scan (classification), locating exactly where it is (segmentation), and understanding what the model has learned (interpretability via Grad-CAM).</p>
+
+<p>The dataset is the LGG Brain MRI Segmentation dataset, containing 3,929 MRI slices from 110 patients diagnosed with lower-grade gliomas (LGG), each paired with a pixel-level binary segmentation mask. Labels for classification are derived from the masks: a slice is positive if any mask pixel is non-zero.</p>
+
+<h2>2. Background and Theory</h2>
+
+<h3>2.1 Transfer Learning for Classification</h3>
+
+<p>Training a deep neural network from scratch requires large labeled datasets and significant compute. Transfer learning addresses this by reusing a model pre-trained on a large general dataset (ImageNet) and adapting it to a new, smaller task. The pretrained model has already learned rich feature representations — edges, textures, shapes — that generalize across visual domains, including medical imaging.</p>
+
+<p>In this project, <strong>MobileNetV2</strong> serves as the frozen backbone for the classifier. MobileNetV2 is a lightweight architecture based on inverted residual blocks with linear bottlenecks, designed to be computationally efficient. Its weights are kept fixed; only a small task-specific head is trained on the brain MRI data. This head consists of a Global Average Pooling layer, a Dropout layer for regularization, and a Dense softmax output for binary classification.</p>
+
+<p>A baseline scratch-built CNN (two convolutional blocks followed by a fully-connected head) was also trained to serve as a comparison point for the transfer learning approach.</p>
+
+<h3>2.2 U-Net for Semantic Segmentation</h3>
+
+<p>While classification answers <em>"is there a tumor?"</em>, segmentation answers <em>"where exactly?"</em> at the pixel level. U-Net is the standard architecture for biomedical image segmentation. It follows an encoder&ndash;decoder design:</p>
+<ul>
+  <li>The <strong>encoder</strong> progressively extracts abstract feature representations, reducing spatial resolution.</li>
+  <li>The <strong>decoder</strong> reconstructs spatial resolution step by step, recovering fine-grained detail.</li>
+  <li><strong>Skip connections</strong> bridge encoder and decoder at each resolution level, allowing the decoder to fuse low-level spatial detail with high-level semantic context &mdash; critical for accurate boundary delineation.</li>
+</ul>
+
+<p>Here, the encoder is a frozen MobileNetV2 backbone and the decoder is a pix2pix-style upsampling network. Because tumor pixels make up less than 1% of all pixels in this dataset, a class weight of 5&times; is applied to tumor pixels during training to prevent the model from collapsing to predicting all-background.</p>
+
+<h3>2.3 Grad-CAM for Interpretability</h3>
+
+<p>Gradient-weighted Class Activation Mapping (Grad-CAM) visualizes which image regions a CNN uses to reach a prediction. It computes the gradient of the predicted class score with respect to the final convolutional layer's feature maps. These gradients are globally averaged into channel weights, and a weighted sum of the channels produces a spatial heatmap, which is upsampled and overlaid on the original image.</p>
+
+<p>In a medical context, Grad-CAM lets us verify whether the model attends to clinically relevant regions, and reveals where it fails when it makes a wrong prediction.</p>
+
+<h2>3. Dataset</h2>
+
+<table>
+  <tr><th>Property</th><th>Value</th></tr>
+  <tr><td>Source</td><td>Kaggle &mdash; mateuszbuda/lgg-mri-segmentation</td></tr>
+  <tr><td>Total slices</td><td>3,929</td></tr>
+  <tr><td>Train / Test split</td><td>3,143 / 786 (80/20)</td></tr>
+  <tr><td>Tumor-positive slices</td><td>34.9%</td></tr>
+  <tr><td>Image resolution</td><td>128 &times; 128 &times; 3 (pre-contrast, FLAIR, post-contrast)</td></tr>
+</table>
+
+<h2>4. Results</h2>
+
+<h3>4.1 Classification</h3>
+
+<p>Two classifiers were evaluated: a scratch-built CNN (baseline) and a MobileNetV2 transfer learning model (frozen backbone). Both were trained for 10&ndash;15 epochs with Adam and categorical cross-entropy loss.</p>
+
+<table>
+  <tr><th>Model</th><th>Test Accuracy</th></tr>
+  <tr><td>Scratch CNN (baseline)</td><td>82.44%</td></tr>
+  <tr><td>MobileNetV2 (frozen, transfer learning)</td><td>79.39%</td></tr>
+</table>
+
+<p>The training curves below show the MobileNetV2 model's behavior across epochs. Validation accuracy plateaus around 83&ndash;86% early on and then declines, while training accuracy continues to rise &mdash; a sign of mild overfitting in the later epochs.</p>
+
+<figure>
+  <img src="results/classification_accuracy.png" alt="Classification accuracy curve" />
+  <figcaption>Figure 1 &mdash; Training and validation accuracy over epochs (classification).</figcaption>
+</figure>
+
+<figure>
+  <img src="results/classification_loss.png" alt="Classification loss curve" />
+  <figcaption>Figure 2 &mdash; Training and validation loss over epochs. The growing gap after epoch 8 confirms overfitting.</figcaption>
+</figure>
+
+<p>The confusion matrix on the held-out test set is shown below.</p>
+
+<figure>
+  <img src="results/confusion_matrix.png" alt="Confusion matrix" />
+  <figcaption>Figure 3 &mdash; Confusion matrix on the test set (457 TN, 53 FP, 77 FN, 199 TP).</figcaption>
+</figure>
+
+<table>
+  <tr><th>Metric</th><th>Value</th></tr>
+  <tr><td>Accuracy</td><td>83.46%</td></tr>
+  <tr><td>Precision (tumor)</td><td>0.79</td></tr>
+  <tr><td>Recall (tumor)</td><td>0.72</td></tr>
+  <tr><td>F1-score (tumor)</td><td>0.75</td></tr>
+  <tr><td>False Negatives (missed tumors)</td><td>77</td></tr>
+</table>
+
+<h3>4.2 Segmentation</h3>
+
+<p>The U-Net segmenter was trained for 10 epochs. Both training and validation loss converge to very low values (~0.02&ndash;0.03) and stay close throughout &mdash; indicating good generalization without overfitting.</p>
+
+<figure>
+  <img src="results/segmentation_loss.png" alt="Segmentation loss curve" />
+  <figcaption>Figure 4 &mdash; Training and validation loss for the U-Net segmenter. Both curves converge tightly.</figcaption>
+</figure>
+
+<h3>4.3 Grad-CAM Heatmaps</h3>
+
+<p>Grad-CAM was applied to the trained classifier to visualize attention on two groups of cases.</p>
+
+<figure>
+  <img src="results/gradcam_correct.png" alt="Grad-CAM correct predictions" />
+  <figcaption>Figure 5 &mdash; Grad-CAM heatmaps for correctly classified tumor slices (true positives). Each row shows the original MRI, the raw heatmap, and the overlay.</figcaption>
+</figure>
+
+<figure>
+  <img src="results/gradcam_false_negatives.png" alt="Grad-CAM false negatives" />
+  <figcaption>Figure 6 &mdash; Grad-CAM heatmaps for missed tumors (false negatives). Activation is diffuse and spread across large, non-specific regions.</figcaption>
+</figure>
+
+<h2>5. Discussion</h2>
+
+<p><strong>On transfer learning vs. scratch training:</strong> The MobileNetV2 frozen backbone (79.39%) performed slightly below the scratch CNN (82.44%). This is somewhat counterintuitive but explainable: MobileNetV2 was pretrained on natural images (RGB photographs of everyday objects), whereas brain MRI data has a very different visual distribution &mdash; low contrast, grayscale-like structure, and domain-specific textures. With only 2,562 trainable parameters in the classification head, the frozen features may not adapt sufficiently to this domain shift. Fine-tuning some of the later encoder layers would likely close this gap.</p>
+
+<p><strong>On classification errors:</strong> The 77 false negatives (missed tumors) represent the primary clinical concern. In medical screening, recall is more critical than precision &mdash; a missed tumor is more dangerous than a false alarm. The current recall of 0.72 means roughly one in four tumors goes undetected. Stronger data augmentation, an unfrozen encoder, or a Dice-weighted loss could push recall higher.</p>
+
+<p><strong>On segmentation:</strong> The tight train/validation loss curves suggest the U-Net generalizes well. However, the very low absolute loss values (~0.02) should be interpreted carefully: when 99%+ of pixels are background, a model can achieve very low cross-entropy simply by learning to classify background correctly. Dice score or IoU computed only on tumor pixels would give a more honest picture of segmentation quality.</p>
+
+<p><strong>On Grad-CAM:</strong> The contrast between correct and failed predictions is striking. For correct predictions, the model's attention is relatively concentrated on specific internal brain structures. For false negatives, activation spreads diffusely over the entire brain outline &mdash; the model appears to rely on global shape cues rather than the localized texture change that marks the tumor. This is consistent with the recall weakness and suggests the model would benefit from training on more examples of low-contrast or small tumors.</p>
+
+<h2>6. Model Comparison</h2>
+
+<p>The table below summarizes the two classification approaches side by side, along with key properties of the segmentation model.</p>
+
+<table>
+  <tr>
+    <th>Aspect</th>
+    <th>Scratch CNN</th>
+    <th>MobileNetV2 (frozen)</th>
+    <th>U-Net (segmentation)</th>
+  </tr>
+  <tr>
+    <td>Task</td>
+    <td>Binary classification</td>
+    <td>Binary classification</td>
+    <td>Pixel-wise segmentation</td>
+  </tr>
+  <tr>
+    <td>Backbone</td>
+    <td>None (trained from scratch)</td>
+    <td>MobileNetV2 (ImageNet)</td>
+    <td>MobileNetV2 (ImageNet)</td>
+  </tr>
+  <tr>
+    <td>Trainable parameters</td>
+    <td>7,392,578 (all)</td>
+    <td>2,562 (head only)</td>
+    <td>Decoder layers only</td>
+  </tr>
+  <tr>
+    <td>Training epochs</td>
+    <td>15</td>
+    <td>10</td>
+    <td>10</td>
+  </tr>
+  <tr>
+    <td>Test accuracy</td>
+    <td>82.44%</td>
+    <td>79.39%</td>
+    <td>&mdash; (loss &asymp; 0.02)</td>
+  </tr>
+  <tr>
+    <td>Overfitting observed</td>
+    <td>Yes (late epochs)</td>
+    <td>Yes (after epoch 8)</td>
+    <td>No (train &asymp; val loss)</td>
+  </tr>
+</table>
+
+<p>The most notable finding is that the scratch CNN outperformed the frozen MobileNetV2 despite having far more parameters and no pretrained prior. This outcome highlights a key limitation of transfer learning: <strong>domain shift</strong>. MobileNetV2 was trained on everyday RGB photographs, which share very little statistical structure with multi-modal brain MRI data. When the backbone is frozen, none of its features can adapt, so the tiny classification head must bridge a large domain gap with only 2,562 weights &mdash; a difficult constraint.</p>
+
+<p>The scratch CNN, despite being shallower, is free to learn features that are specific to MRI texture and contrast patterns. Given that the dataset is large enough (~3,000 training samples) to train a compact model, this flexibility outweighs the inductive bias advantage of the pretrained backbone.</p>
+
+<p>The segmentation model benefits from the same MobileNetV2 encoder, but here the pretrained features are more useful: the encoder only needs to detect spatial structures (boundaries, regions), which are a more domain-agnostic visual property than the fine-grained texture cues needed for classification. The decoder, which is fully trainable, then learns to map those features to tumor masks &mdash; a more favorable division of labor.</p>
+
+<h2>7. Future Work</h2>
+
+<p>Several concrete directions would improve the pipeline:</p>
+
+<p><strong>Fine-tune the MobileNetV2 encoder.</strong> Rather than keeping all backbone weights frozen, unfreezing the later convolutional blocks and training them with a small learning rate would allow the pretrained features to adapt to the MRI domain. This is the most direct fix for the domain-shift gap observed in classification.</p>
+
+<p><strong>Medical-domain augmentation.</strong> The current pipeline uses only horizontal flipping. Brain MRI data benefits from augmentations that mimic real acquisition variability: random rotation, elastic deformations (to simulate soft-tissue movement), Gaussian noise, and brightness/contrast jitter. These would increase effective dataset size and improve generalization to unseen patients.</p>
+
+<p><strong>Patient-level data splitting.</strong> The current 80/20 split is done at the slice level, which means slices from the same patient can appear in both train and test sets. This inflates performance estimates. A proper split should separate patients entirely, ensuring that no patient contributes slices to both partitions.</p>
+
+<p><strong>Better loss functions for imbalanced data.</strong> For classification, Focal Loss down-weights easy negatives and focuses training on hard-to-classify tumor cases, which would directly target the false-negative problem. For segmentation, replacing cross-entropy with Dice Loss or a combined BCE+Dice loss optimizes directly for overlap between predicted and true tumor masks, which is a more meaningful objective than raw pixel accuracy under severe imbalance.</p>
+
+<p><strong>Segmentation evaluation with overlap metrics.</strong> The current segmentation loss curve provides limited insight into actual mask quality. Computing Dice score and Intersection over Union (IoU) on the tumor class specifically would give a quantitative measure of how well the predicted masks align with ground truth, and allow meaningful comparison between model variants.</p>
+
+<p><strong>Deeper or more specialized classifiers.</strong> Architectures such as EfficientNet or a Vision Transformer (ViT) fine-tuned on medical imaging datasets (e.g., pre-trained on CheXpert or RadImageNet) would offer a stronger pretrained prior than ImageNet-only MobileNetV2, potentially closing the gap with the scratch model while still benefiting from transfer.</p>
+
+<p><strong>Multi-task learning.</strong> Classification and segmentation are currently trained as separate models. A shared encoder with two task-specific heads trained jointly could allow the two objectives to regularize each other: the segmentation signal provides spatial supervision that may sharpen the features used for classification, and vice versa.</p>
+
+<h2>8. References</h2>
+
+<ol class="ref-list">
+  <li>Buda, M., Saha, A., &amp; Mazurowski, M. A. (2019). Association of genomic subtypes of lower-grade gliomas with shape features automatically extracted by a deep learning algorithm. <em>Computers in Biology and Medicine</em>, 109, 218&ndash;225.</li>
+  <li>Ronneberger, O., Fischer, P., &amp; Brox, T. (2015). U-Net: Convolutional networks for biomedical image segmentation. <em>MICCAI</em>.</li>
+  <li>Selvaraju, R. R., et al. (2017). Grad-CAM: Visual explanations from deep networks via gradient-based localization. <em>ICCV</em>.</li>
+  <li>Sandler, M., et al. (2018). MobileNetV2: Inverted residuals and linear bottlenecks. <em>CVPR</em>.</li>
+</ol>
+
+</body>
+</html>
