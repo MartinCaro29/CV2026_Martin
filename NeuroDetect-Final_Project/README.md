@@ -16,6 +16,8 @@ NeuroDetect is a deep learning pipeline for brain tumor detection in MRI scans, 
 
 ```
 NeuroDetect-Final_Project/
+├── demo/
+│   └── demo.ipynb              # Detects tumor presence based on an input image
 ├── notebooks/
 │   ├── 00_setup.ipynb           # Dataset download and TIF → PNG conversion
 │   ├── 01_train_test.ipynb      # Train/test split and label derivation
@@ -51,12 +53,13 @@ Upload the `notebooks/` folder to your Google Drive, then open each notebook in 
 
 ### Step 3 — Run notebooks in order
 
-| # | Notebook | What it does |
-|---|---|---|
-| 1 | `00_setup.ipynb` | Download dataset, convert TIF → PNG |
-| 2 | `01_train_test.ipynb` | Split data and derive labels |
+| # | Notebook                     | What it does |
+|---|------------------------------|---|
+| 1 | `00_setup.ipynb`             | Download dataset, convert TIF → PNG |
+| 2 | `01_train_test.ipynb`        | Split data and derive labels |
 | 3 | `02_classification_TL.ipynb` | Train MobileNetV2 transfer learning classifier |
-| 4 | `03_segmentation.ipynb` | Train and evaluate the U-Net segmenter |
-| 5 | `04_heatmap.ipynb` | Generate Grad-CAM heatmaps |
+| 4 | `03_segmentation.ipynb`      | Train and evaluate the U-Net segmenter |
+| 5 | `04_heatmap.ipynb`           | Generate Grad-CAM heatmaps |
+| 6 | `demo.ipynb`                 | Detects tumor presence based on an input image |
 
 Each notebook reads from and writes back to Google Drive. Run them sequentially.
